@@ -61,16 +61,25 @@ class OpenAIRunner:
         if block_msg is not None:
             return block_msg
 
-        client = self._client()
-        completion = client.chat.completions.create(
-            model=self.model,
-            messages=[
+        payload = {
+            "model": self.model,
+            "messages": [
                 {"role": "system", "content": agent.instruction},
                 {"role": "user", "content": user_message},
             ],
-            temperature=self.temperature,
-        )
-        text = (completion.choices[0].message.content or "").strip()
+            "temperature": self.temperature,
+        }
+        with self._client() as client:
+            if self.provider == "openrouter":
+                completion = client.post(
+                    "/chat/completions", cast_to=object, body=payload
+                )
+                content = completion["choices"][0]["message"].get("content")
+            else:
+                completion = client.chat.completions.create(**payload)
+                content = completion.choices[0].message.content
+        text = (content or "").strip()
+        
 
         for hook in self.output_hooks:
             text = hook(text)
